@@ -52,7 +52,9 @@ nvars = 2; % Number of variables
 
 % Default options
 options = optimoptions('ga','Display','final',...
-    'PopulationSize',30,'OutputFcn',@callback_function);
+    'InitialPenalty',10,'PenaltyFactor',20,...
+    'CrossoverFraction',0.01,'MutationFcn',{@mutationadaptfeasible,1,1},...
+    'PopulationSize',5,'OutputFcn',@callback_function);
 
 % Use GA optimization
 [x,fval] = ga(@combined_function_obj,nvars,[],[],[],[],LB,UB,@combined_function_cstr,options)
@@ -182,17 +184,25 @@ function [state,options,optchanged] = callback_function(options,state,flag)
     global ax ax2 ax3 cumilative_f_evals budget % variables for controlling total computational budget
     global max_generations_per_it max_stall_generations_per_it % variables for controlling auglag step
     global h_max stall_G_sub f_best n_sub_generations % variables for keeping track of augmented lagrange step
+    global history
     optchanged = false;
     
     G = state.Generation;
     population = state.Population;
     score = state.Score;
     
+    % Retrieve fitness and constraints off population
+    for p_i = 1:1:size(population,1)
+        RowIdx(p_i) = find(ismember(history(:,1:2), population(p_i,:),'rows'));
+    end
+    fitness = history(RowIdx, 3);
+    constraint = history(RowIdx, 4);
+    
     % Score mean
-    smean = nanmean(score); % Ignore infeasible individuals with a NaN score
+    smean = nanmean(fitness); % Ignore infeasible individuals with a NaN score
     Y = smean;
-    L = min(score);
-    U = max(score);
+    L = min(fitness);
+    U = max(fitness);
     
     % Distance mean
     population_center = mean(population,1); % mean along rows
@@ -311,9 +321,9 @@ function [state,options,optchanged] = callback_function(options,state,flag)
                     x_string = repmat('%-.6f   ',1,size(x_best,2));
                     fprintf(['        %-3d       %-5d       %-+.6f     %+3.6f   %-3d       %-.6e   ( ',x_string,' )\n'],...
                         n_sub_generations,cumilative_f_evals,f_best,h_max,stall_G_sub,current_tol,x_best)
-                    
-                    shg(); % show current figure
                 end
+                     
+                shg(); % show current figure
 
             else
                 state.LastImprovement = G+1;
